@@ -5,15 +5,29 @@ from requests.auth import HTTPBasicAuth
 import re
 from typing import Dict, List, Any, Tuple
 from tabulate import tabulate
+import argparse
 
-# Jenkins configuration
-JENKINS_URL = "http://172.24.240.182:8082"
-JENKINS_USER = "admin"
-JENKINS_API_TOKEN = "admin"
+# Jenkins configuration will be set from command line arguments
+JENKINS_URL = ""
+JENKINS_USER = ""
+JENKINS_API_TOKEN = ""
 
 JSON_OUTPUT_FILE = "jenkins_sybase_credentials_report.json"
 TABULAR_OUTPUT_FILE = "jenkins_sybase_credentials_report.txt"
 UPDATED_CREDS_OUTPUT_FILE = "jenkins_updated_credentials_report.txt"
+
+
+def parse_arguments():
+    global JENKINS_URL, JENKINS_USER, JENKINS_API_TOKEN
+    parser = argparse.ArgumentParser(description='Process Jenkins credentials.')
+    parser.add_argument('jenkins_url', help='Jenkins URL')
+    parser.add_argument('username', help='Jenkins username')
+    parser.add_argument('password', help='Jenkins password or API token')
+    args = parser.parse_args()
+
+    JENKINS_URL = args.jenkins_url
+    JENKINS_USER = args.username
+    JENKINS_API_TOKEN = args.password
 
 
 def get_jenkins_data(url: str) -> Any:
@@ -106,6 +120,7 @@ def run_groovy_script(script: str) -> str:
 
 
 def main():
+    parse_arguments()
     report_data = {}
     root_url = f"{JENKINS_URL}/api/json?tree=jobs[name,url,_class]"
     root_data = get_jenkins_data(root_url)
