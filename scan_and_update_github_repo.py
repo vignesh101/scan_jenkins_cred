@@ -18,7 +18,7 @@ REPOS = [
 
 BASE_TARGET_DIR = "temp_repo"
 JSON_OUTPUT_FILE = "sybase_usage_summary_report.json"
-TABULAR_OUTPUT_FILE = "sybase_usage_detailed_report.txt"
+TABULAR_OUTPUT_FILE = "github_sybase_usage_detailed_report.txt"
 
 
 def parse_arguments():
@@ -171,7 +171,7 @@ def generate_summary_report(repo_reports: List[Dict[str, Any]], json_output_file
     table = tabulate(table_data, headers=headers, tablefmt="grid")
 
     with open(tabular_output_file, 'w') as f:
-        f.write("Sybase Usage Detailed Report\n")
+        f.write("Github Sybase Usage Detailed Report\n")
         f.write("============================\n\n")
         f.write(table)
 
