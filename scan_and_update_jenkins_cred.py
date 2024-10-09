@@ -52,11 +52,21 @@ def get_job_config(job_url: str) -> str:
 def parse_job_config(config_xml: str) -> List[str]:
     root = ET.fromstring(config_xml)
     sybase_credentials = []
+
+    # Check for credentials in traditional Jenkins jobs
     for binding in root.findall(".//org.jenkinsci.plugins.credentialsbinding.impl.SecretBuildWrapper/bindings/*"):
         credential_id = binding.find("credentialsId")
         if credential_id is not None and "sybase" in credential_id.text.lower():
             sybase_credentials.append(credential_id.text)
-    return sybase_credentials
+
+    # Check for credentials in pipeline scripts
+    script_elements = root.findall(".//script") + root.findall(".//scriptPath")
+    for script_element in script_elements:
+        if script_element.text:
+            cred_ids = re.findall(r"credentialsId:\s*'([^']*sybase[^']*)'", script_element.text, re.IGNORECASE)
+            sybase_credentials.extend(cred_ids)
+
+    return list(set(sybase_credentials))  # Remove duplicates
 
 
 def scan_for_sybase_credentials(item: Dict[str, Any], path: str, report_data: Dict[str, Tuple[str, List[str]]]):
