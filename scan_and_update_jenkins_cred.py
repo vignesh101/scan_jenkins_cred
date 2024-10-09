@@ -160,12 +160,10 @@ def main():
     # Groovy script template
     groovy_script_template = """
     import jenkins.model.Jenkins
-    import hudson.model.Item
-    import com.cloudbees.hudson.plugins.folder.Folder
     import com.cloudbees.plugins.credentials.CredentialsProvider
     import com.cloudbees.plugins.credentials.domains.Domain
     import com.cloudbees.plugins.credentials.impl.UsernamePasswordCredentialsImpl
-    import com.cloudbees.plugins.credentials.common.StandardUsernamePasswordCredentials
+    import com.cloudbees.plugins.credentials.CredentialsScope
     import hudson.util.Secret
     import java.util.UUID
     import groovy.json.JsonSlurper
@@ -176,14 +174,14 @@ def main():
         def newPassword = UUID.randomUUID().toString()
 
         def updatedCred = new UsernamePasswordCredentialsImpl(
-            cred.scope,
+            CredentialsScope.GLOBAL,
             cred.id,
             cred.description.replace("Sybase", "Oracle"),
             newUsername,
             newPassword
         )
 
-        return [updatedCred: updatedCred, newPassword: newPassword]
+        return [updatedCred: updatedCred, newUsername: newUsername, newPassword: newPassword]
     }
 
     def getJobByFullName(fullName) {
@@ -200,32 +198,31 @@ def main():
         }
 
         credentialIds.each { credId ->
-            def creds = CredentialsProvider.lookupCredentials(
-                StandardUsernamePasswordCredentials.class,
-                Jenkins.instance,
+            def cred = CredentialsProvider.lookupCredentials(
+                UsernamePasswordCredentialsImpl.class,
+                job,
                 null,
                 null
-            )
-            def cred = creds.find { it.id == credId }
+            ).find { it.id == credId }
 
             if (cred) {
                 try {
                     def updatedResult = updateCredential(cred)
                     def updatedCred = updatedResult.updatedCred
+                    def newUsername = updatedResult.newUsername
                     def newPassword = updatedResult.newPassword
 
-                    def store = CredentialsProvider.lookupStores(job).first()
-                    if (store) {
-                        store.updateCredentials(Domain.global(), cred, updatedCred)
-                        updatedCredentials << [
-                            id: cred.id,
-                            username: updatedCred.username,
-                            password: newPassword,
-                            job: jobFullName
-                        ]
-                        println "Updated credential: ${cred.id} in job: ${jobFullName}"
-                    } else {
-                        println "No credential store found for job: ${jobFullName}"
+                    CredentialsProvider.lookupStores(job).each { store ->
+                        if (store.updateCredentials(Domain.global(), cred, updatedCred)) {
+                            updatedCredentials << [
+                                id: cred.id,
+                                username: newUsername,
+                                password: newPassword,
+                                job: jobFullName
+                            ]
+                            println "Updated credential: ${cred.id} in job: ${jobFullName}"
+                            return true  // Exit the each loop after successful update
+                        }
                     }
                 } catch (Exception e) {
                     println "Failed to update credential: ${cred.id} in job: ${jobFullName}. Error: ${e.message}"
@@ -239,7 +236,7 @@ def main():
     }
 
     def jsonSlurper = new JsonSlurper()
-    def input = jsonSlurper.parseText(json)
+    def input = jsonSlurper.parseText('''${json}''')
     def allUpdatedCreds = []
 
     input.each { jobName, data ->
@@ -252,13 +249,10 @@ def main():
     """
 
     # Properly escape the JSON string
-    escaped_report_json = json.dumps(json_report)
+    escaped_report_json = json.dumps(report_data).replace("'", "\\'").replace('"', '\\"')
 
     # Construct the Groovy script by embedding the escaped JSON
-    groovy_script = f"""
-    def json = {escaped_report_json}
-    {groovy_script_template}
-    """
+    groovy_script = groovy_script_template.replace("${json}", escaped_report_json)
 
     # Run Groovy script to update credentials
     result = run_groovy_script(groovy_script)
